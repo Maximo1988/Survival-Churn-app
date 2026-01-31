@@ -92,7 +92,7 @@ with st.sidebar:
 
 # Main area: mostrar tabla y análisis por variable
 st.subheader("Vista de datos")
-st.dataframe(df.head(10))
+st.dataframe(df.head(5))
 
 if not selected:
     st.warning("Selecciona al menos una variable en la barra lateral para ver los análisis.")
