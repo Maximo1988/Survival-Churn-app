@@ -14,7 +14,6 @@ try:
 except Exception:
     PLOTLY_AVAILABLE = False
 
-<<<<<<< HEAD
 st.set_page_config(layout="wide", page_title="Survival Churn App")
 
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -103,7 +102,7 @@ else:
         cols = st.columns([2, 1])
         # Left: plots
         with cols[0]:
-                st.write("**Curva de supervivencia (KM) por categoría**")
+            st.write("**Curva de supervivencia (KM) por categoría**")
             km_results = compute_km(df, 'Tenure Months', 'Churn Value', var)
 
             # KM plot: Plotly si está disponible, sino Matplotlib
@@ -114,7 +113,7 @@ else:
                     if res is None:
                         continue
                     fig.add_trace(go.Scatter(x=res['timeline'], y=res['survival'], mode='lines', name=str(grp),
-                                             hovertemplate=f'Grupo: {grp}<br>Mes: %{x}<br>Supervivencia: %{y:.3f}<extra></extra>'))
+                                             hovertemplate=f'Grupo: {grp}<br>Mes: %{{x}}<br>Supervivencia: %{{y:.3f}}<extra></extra>'))
                     plotted = True
                 if not plotted:
                     st.write("No hay suficientes datos para ajustar Kaplan–Meier.")
@@ -234,8 +233,3 @@ else:
 
 st.markdown('---')
 st.write('Sugerencia: selecciona una sola variable para análisis más claro, o varias para comparar múltiples variables una a una.')
-=======
-st.write("Hola")
-st.write("agregando un comentario")
-st.write("q onda chicos unas cervezas?")
->>>>>>> ad7d81cf8ae7b9d8fa7f3e73027580d619975624
