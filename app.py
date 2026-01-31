@@ -14,6 +14,7 @@ try:
 except Exception:
     PLOTLY_AVAILABLE = False
 
+<<<<<<< HEAD
 st.set_page_config(layout="wide", page_title="Survival Churn App")
 
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -233,3 +234,8 @@ else:
 
 st.markdown('---')
 st.write('Sugerencia: selecciona una sola variable para análisis más claro, o varias para comparar múltiples variables una a una.')
+=======
+st.write("Hola")
+st.write("agregando un comentario")
+st.write("q onda chicos unas cervezas?")
+>>>>>>> ad7d81cf8ae7b9d8fa7f3e73027580d619975624
