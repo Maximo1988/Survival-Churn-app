@@ -1,15 +1,13 @@
-import streamlit as st
-import pandas as pd
 import os
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
-from lifelines import KaplanMeierFitter
+import pandas as pd
+import streamlit as st
+from lifelines import CoxPHFitter, KaplanMeierFitter
 from lifelines.statistics import logrank_test
-from lifelines import CoxPHFitter
 from lifelines.utils import concordance_index
+
 try:
-    import plotly.express as px
     import plotly.graph_objects as go
     PLOTLY_AVAILABLE = True
 except Exception:
@@ -33,7 +31,9 @@ def compute_km(df, duration_col, event_col, group_col):
         mask = df[group_col] == grp
         try:
             kmf.fit(df[mask][duration_col], df[mask][event_col], label=str(grp))
-            results[grp] = kmf.survival_function_.reset_index().rename(columns={"timeline": "timeline", kmf.survival_function_.columns[0]: "survival"})
+            surv_df = kmf.survival_function_.reset_index()
+            surv_df.columns = ["timeline", "survival"]
+            results[grp] = surv_df
         except Exception:
             results[grp] = None
     return results
@@ -50,7 +50,7 @@ def compute_logrank_pairs(df, duration_col, event_col, group_col):
             res = logrank_test(df[mask1][duration_col], df[mask2][duration_col],
                                event_observed_A=df[mask1][event_col], event_observed_B=df[mask2][event_col])
             p = res.p_value
-            # Try to compute HR via Cox on the two groups (cat2 vs cat1)
+            # Intentando calcular HR a través de Cox en los dos grupos (cat2 vs cat1)
             hr = hr_lower = hr_upper = None
             try:
                 subset = df[df[group_col].isin([cat1, cat2])][[duration_col, event_col, group_col]].dropna()
@@ -70,13 +70,16 @@ def compute_logrank_pairs(df, duration_col, event_col, group_col):
 @st.cache_data
 def fit_cox_for_var(df, duration_col, event_col, var, include_numeric=False):
     d = df[[duration_col, event_col, var]].copy()
-    # One-hot encode categorical var
+    # Codificar variable categórica con one-hot
     dummies = pd.get_dummies(d[var], prefix=var.replace(' ', '_'), drop_first=True)
     X = pd.concat([d[[duration_col, event_col]].reset_index(drop=True), dummies.reset_index(drop=True)], axis=1)
-    # Optionally include Monthly Charges if present and requested
+    # Opcionalmente incluir Monthly Charges si está presente y se solicita
     if include_numeric and 'Monthly Charges' in df.columns:
-        X = pd.concat([X, df[['Monthly Charges']].reset_index(drop=True)], axis=1)
-    # Drop NA and ensure numeric
+        try:
+            X = pd.concat([X, df.loc[X.index, ['Monthly Charges']].reset_index(drop=True)], axis=1)
+        except Exception:
+            pass
+    # Eliminar NA y asegurar tipo numérico
     X = X.dropna()
     try:
         cph = CoxPHFitter()
@@ -85,10 +88,10 @@ def fit_cox_for_var(df, duration_col, event_col, var, include_numeric=False):
         concord = cph.concordance_index_
         return cph, hr, concord, None
     except Exception as e:
-        # Return the exception string to explain why the model failed
+        # Devolver el texto de la excepción para explicar por qué falló el modelo
         return None, None, None, str(e)
 
-# --- App UI ---
+# --- Interfaz de Usuario ---
 # CSS para reducir ancho del sidebar
 st.markdown("""
 <style>
@@ -103,7 +106,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Análisis de Churn — Supervivencia y Riesgo")
+st.markdown("<h1 style='text-align: center;'>Retención Inteligente: Anticipando el Churn</h1>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 df = load_data()
 
 # Sidebar: selección de variables significativas (preseleccionadas)
@@ -114,23 +118,24 @@ with st.sidebar:
                    'Internet Service', 'Streaming Movies', 'Streaming TV',
                    'Paperless Billing', 'Senior Citizen', 'Multiple Lines']
 
-    # Column groups that are NOT predictors
+    # Grupos de columnas que NO son predictores
     id_cols = ['CustomerID']
     geo_cols = ['Country', 'State', 'City', 'Zip Code', 'Lat Long', 'Latitude', 'Longitude']
     # 'Churn Value' se usa como variable de evento, no como predictor
     non_predictor_cols = ['Count', 'Churn Reason', 'Churn Label', 'Churn Score', 'CLTV', 'Churn Value']
     disabled_cols = set(id_cols + geo_cols + non_predictor_cols)
 
-    # Build the list of selectable variables that ARE used in the models
+    # Construir la lista de variables seleccionables que SÍ se usan en los modelos
     obj_cols = df.select_dtypes(include=['object']).columns.tolist()
-    # Only show the recommended model variables (if present and not disabled)
+    # Solo mostrar las variables recomendadas (si están presentes y no deshabilitadas)
     available = [c for c in recommended if c in obj_cols and c not in disabled_cols]
 
-    # Ensure uniqueness and preserve order
+    # Asegurar unicidad y preservar orden
     available = list(dict.fromkeys(available))
     default_sel = [x for x in recommended[:3] if x in available]
 
     selected = st.multiselect("Seleccion de variables:", options=available, default=default_sel)
+    st.caption("Sugerencia: selecciona una sola variable para análisis más claro, o varias para comparar múltiples variables una a una")
 
     st.markdown("---")
     st.write("Instrucciones:")
@@ -138,7 +143,7 @@ with st.sidebar:
     st.markdown("• Kaplan-Meier\n• Log-Rank\n• Regresión COX")
     include_numeric = st.checkbox("Incluir 'Monthly Charges' en el modelo COX", value=True)
 
-    # Collapsible panel to show non-predictor/identifier/geographic columns only on demand
+    # Panel colapsable para mostrar columnas no predictoras/identificadoras/geográficas solo bajo demanda
     with st.expander("Variables deshabilitadas", expanded=False):
         col_a, col_b, col_c = st.columns(3)
         with col_a:
@@ -153,7 +158,7 @@ with st.sidebar:
                     st.checkbox(f"{col} (geograficas)", value=False, disabled=True)
         with col_c:
             st.write("**No predictoras**")
-            # Map 'Count' to a clearer label if present
+            # Mapear 'Count' a una etiqueta más clara si está presente
             for col in non_predictor_cols:
                 if col in df.columns:
                     label = col
@@ -162,7 +167,7 @@ with st.sidebar:
                     st.checkbox(f"{label} (No predictoras)", value=False, disabled=True)
         st.caption("Nota: estas columnas no se consideran predictoras para los modelos")
 
-# Main area: mostrar tabla y análisis por variable
+# Área principal: mostrar tabla y análisis por variable
 st.subheader("Vista previa e inicial de los datos")
 st.dataframe(df.head(5))
 
@@ -217,8 +222,9 @@ else:
                         ax.set_title(f'Curva KM por {var}')
                         ax.legend()
                         st.pyplot(fig)
+                        plt.close(fig)
 
-                # Texto resumen KM
+                # Texto resumen KM simplificado
                 if plotted:
                     try:
                         summaries = []
@@ -228,22 +234,30 @@ else:
                                 continue
                             surv = res['survival']
                             timeline = res['timeline']
+                            # Crear etiqueta descriptiva con nombre de variable
+                            grp_label = f"{grp} {var}" if str(grp).lower() in ['no', 'yes'] else str(grp)
                             # Mediana aproximada: primer tiempo donde supervivencia <= 0.5
                             median_time = None
                             if (surv <= 0.5).any():
                                 median_time = timeline[surv <= 0.5].iloc[0]
-                            last_surv.append((grp, float(surv.iloc[-1]), float(timeline.iloc[-1])))
+                            last_surv.append((grp_label, float(surv.iloc[-1]), float(timeline.iloc[-1])))
                             if median_time is None:
-                                summaries.append(f"Grupo {grp}: no alcanza 50% de abandono en el periodo observado.")
+                                summaries.append(f"**{grp_label}**: la mayoría de clientes permanece activa durante todo el periodo analizado.")
                             else:
-                                summaries.append(f"Grupo {grp}: mediana de abandono ≈ {median_time:.0f} meses.")
+                                summaries.append(f"**{grp_label}**: aproximadamente la mitad de los clientes abandonan después de {median_time:.0f} meses.")
 
-                        st.markdown("**Resultado KM:**")
+                        st.markdown("**¿Qué significa esta gráfica?**")
+                        st.write("La curva de Kaplan-Meier muestra el **porcentaje de clientes que permanecen activos** a lo largo del tiempo. Entre más alta esté la línea, más clientes se quedan con el servicio.")
+                        st.markdown("**Interpretación por grupo:**")
                         if last_surv:
                             best = sorted(last_surv, key=lambda x: x[1], reverse=True)[0]
-                            st.write(f"Mayor retención al final del periodo: {best[0]} (supervivencia ≈ {best[1]:.2f} a {best[2]:.0f} meses).")
+                            worst = sorted(last_surv, key=lambda x: x[1])[0]
+                            st.success(f"✅ **Mejor retención**: {best[0]} — al mes {best[2]:.0f}, todavía {best[1]*100:.0f}% de clientes permanecen activos.")
+                            if best[0] != worst[0]:
+                                st.error(f"⚠️ **Menor retención**: {worst[0]} — al mes {worst[2]:.0f}, solo {worst[1]*100:.0f}% de clientes permanecen activos.")
+                        st.markdown("---")
                         for line in summaries:
-                            st.write(line)
+                            st.write(f"• {line}")
                     except Exception:
                         st.info("No fue posible generar el resumen textual de KM para esta variable.")
             except Exception as e:
@@ -266,13 +280,13 @@ else:
                 summary = cph.summary
                 hr_df = summary[["exp(coef)"]].rename(columns={"exp(coef)": "HR"})
 
-                # percent change and formatted strings (only HR general)
+                # Cambio porcentual y cadenas formateadas (solo HR general)
                 hr_pct_num = (hr_df['HR'] - 1) * 100
                 display_df = pd.DataFrame({
                     'HR (%)': hr_pct_num.map(lambda x: f"{x:.2f}%"),
                 }, index=hr_df.index)
 
-                # Show table (only HR) and concordance
+                # Mostrar tabla (solo HR) y concordance
                 st.dataframe(display_df)
                 if concord is not None:
                     st.metric("Concordance (C-index)", f"{concord*100:.2f}%")
@@ -340,6 +354,7 @@ else:
                                 ax.set_title("")
                                 ax.grid(True, alpha=0.3)
                                 st.pyplot(fig)
+                                plt.close(fig)
                         else:
                             st.info("No hay suficientes datos para el Forest Plot.")
                     else:
@@ -356,7 +371,7 @@ else:
                         hr_val = float(row['HR'])
                         hr_pct = (hr_val - 1) * 100
                         
-                        # Determine effect direction
+                        # Determinar dirección del efecto
                         if hr_val > 1:
                             color = "#ff6b6b"
                             message = f"El valor de riesgo de abandono se aumenta a un: {hr_pct:.2f}%"
@@ -364,7 +379,7 @@ else:
                             color = "#51cf66"
                             message = f"El valor de riesgo de abandono se reduce a un: {abs(hr_pct):.2f}%"
                         
-                        # Display with simple interpretation
+                        # Mostrar con interpretación simple
                         st.markdown(f"**{idx}. {name}**")
                         st.markdown(f"<div style='background-color:{color}22; padding:10px; border-left:4px solid {color}; border-radius:5px;'>"
                                   f"{message}"
@@ -409,12 +424,12 @@ else:
                     with st.expander("Info Log‑Rank", expanded=False):
                         st.write("LOG-RANK evaluará la probabilidad de que un cliente permanezca activo a lo largo del tiempo y te dirá si existen diferencias importantes en el tiempo de retención entre dos o más grupos de clientes")
                 
-                # KM curve (graphical view)
+                # Curva KM (vista gráfica)
                 km_results = compute_km(df, 'Tenure Months', 'Churn Value', var)
                 if not km_results:
                     st.markdown("<h3 style='color:red'>No se pudo ajustar Kaplan–Meier: datos insuficientes</h3>", unsafe_allow_html=True)
                 else:
-                    # Plot
+                    # Gráfico
                     if PLOTLY_AVAILABLE:
                         fig = go.Figure()
                         for grp, res in km_results.items():
@@ -436,8 +451,9 @@ else:
                         ax.set_title(f'Curva KM - {var}')
                         ax.legend()
                         st.pyplot(fig)
+                        plt.close(fig)
 
-                # Table with pairwise comparisons (Log-Rank)
+                # Tabla con comparaciones por pares (Log-Rank)
                 pvals = compute_logrank_pairs(df, 'Tenure Months', 'Churn Value', var)
                 if not pvals:
                     st.write("No se pudo calcular Log-Rank")
@@ -459,7 +475,7 @@ else:
                     p_df = pd.DataFrame(rows, columns=['Comparación','Porcentaje (%)'])
                     st.dataframe(p_df)
 
-                    # Conclusion
+                    # Conclusión
                     sig_pairs = [t for t in p_list if t[1] is not None and t[1] < 0.05]
                     if sig_pairs:
                         best = sorted(sig_pairs, key=lambda x: x[1])[0]
@@ -482,7 +498,7 @@ else:
 
         st.markdown('---')
 
-st.markdown('---')
+st.markdown('')
 # Sugerencias contextuales según el modelo seleccionado
 if view_choice == "KM":
     st.write('Sugerencia: Log-Rank te muestra comparaciones por pares para cada variable seleccionada.')
