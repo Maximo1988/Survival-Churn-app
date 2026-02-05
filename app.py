@@ -6,7 +6,6 @@ import pandas as pd
 import streamlit as st
 from lifelines import CoxPHFitter, KaplanMeierFitter
 from lifelines.statistics import logrank_test
-from lifelines.utils import concordance_index
 
 try:
     import plotly.graph_objects as go
@@ -964,11 +963,11 @@ else:
                                 ax.grid(axis='x', alpha=0.3, color='white')
                                 ax.legend(facecolor='black', edgecolor='white', labelcolor='white')
                                 
-                                # Anotaciones explicativas
-                                ax.text(0.02, 0.98, '← Reduce riesgo', transform=ax.transAxes, 
-                                       ha='left', va='top', color='#00ff88', fontsize=10, fontweight='bold')
-                                ax.text(0.98, 0.98, 'Aumenta riesgo →', transform=ax.transAxes, 
-                                       ha='right', va='top', color='#ff4444', fontsize=10, fontweight='bold')
+                                # Anotaciones explicativas (alineadas cerca del label del eje X)
+                                ax.text(0.02, -0.12, '← Reduce riesgo', transform=ax.transAxes, 
+                                       ha='left', va='top', color='#00ff88', fontsize=10, fontweight='bold', clip_on=False)
+                                ax.text(0.98, -0.12, 'Aumenta riesgo →', transform=ax.transAxes, 
+                                       ha='right', va='top', color='#ff4444', fontsize=10, fontweight='bold', clip_on=False)
                                 
                                 st.pyplot(fig)
                                 plt.close(fig)

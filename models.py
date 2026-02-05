@@ -13,7 +13,7 @@ from IPython.display import Math, display
 
 import os
 
-# Cargar datos desde archivo local
+# Cargando datos desde archivo local
 SCRIPT_DIR = os.path.dirname(__file__)
 CSV_PATH = os.path.join(SCRIPT_DIR, "Telco_customer_churn.csv")
 df = pd.read_csv(CSV_PATH)
@@ -86,8 +86,9 @@ for p, pct in zip(ax.patches, tabla_hist["% sobre total"]):
                     (p.get_x() + p.get_width()/2., height + ax.get_ylim()[1] * 0.02), # Aumentar el desplazamiento vertical
                     ha='center', va='bottom', fontsize=7, color="black", rotation=90, clip_on=False)
 
-# Crear la tabla usando los datos resumidos dentro del gráfico
-# Ajustar bbox para que quepa bien la columna y no tape los porcentajes
+# Creando la tabla usando los datos resumidos dentro del gráfico:
+
+# Ajustando bbox para que entre bien la columna y no tape los porcentajes
 table = ax.table(cellText=tabla_resumen.values,
                        colLabels=tabla_resumen.columns,
                        cellLoc='center',
@@ -96,11 +97,11 @@ table = ax.table(cellText=tabla_resumen.values,
 
 table.auto_set_font_size(False)
 table.set_fontsize(8)
-table.scale(0.7, 0.7) # Escalar la tabla para mejor ajuste
+table.scale(0.7, 0.7) # Escalando la tabla para mejor ajuste
 
 # Ajustando el layout para hacer espacio a la tabla
 plt.tight_layout()
-plt.subplots_adjust(right=0.75) # Ajustar el margen derecho para dar espacio a la tabla
+plt.subplots_adjust(right=0.75) # Ajustando margen derecho
 plt.show()
 
 #Comentarios:
@@ -172,20 +173,20 @@ plt.close()
 # Total de clientes
 total_clientes = len(df)
 
-# Construir histograma con los mismos bins anteriores
+# Construyendo histograma con los mismos bins anteriores
 conteos, bins = np.histogram(df['Tenure Months'], bins=30)
 
-# Calcular porcentajes
+# Calculando porcentajes
 porcentajes = (conteos / total_clientes * 100).round(2)
 
-# Crear tabla con intervalos, conteos y porcentajes
+# Creando tabla con intervalos, conteos y porcentajes
 tabla_hist = pd.DataFrame({
     "Intervalo Tenure (Meses)": [f"{int(bins[i])}–{int(bins[i+1])}" for i in range(len(bins)-1)],
     "Clientes": conteos,
     "% sobre total": porcentajes
 })
 
-# Mostrar tabla completa
+# Tabla completa
 print(tabla_hist.to_string(index=False))
 
 # Totales
@@ -217,7 +218,7 @@ plt.xlabel("Tenure (Meses)")
 plt.ylabel("Número de clientes (Churn)")
 plt.tight_layout()
 
-# Anotaciones ejecutivas
+# Anotaciones:
 y_ref = conteos.max() * 0.7 if conteos.max() > 0 else 1
 plt.text(0.1 * 72, y_ref, f"Comenzaron: {total_clientes}", fontsize=12, color="blue", ha="center")
 plt.text(0.9 * 72, y_ref - (conteos.max()*0.15), f"Quedaron activos: {clientes_activos}", fontsize=12, color="green", ha="center")
@@ -253,13 +254,8 @@ conteos = (
 acumulado = conteos.cumsum()
 porcentaje_acumulado = acumulado / total_clientes * 100
 
-# Meses de interés elegidos:
+# Meses de interés debido a su abandono temprano, fin de contratos y lealtad:
 meses = [1, 2, 5, 12, 24, 48, 72]
-
-#PORQUE?
-# Meses 1, 2 y 5: Periodo critico de la relacion del cliente, asi como el abandono temprano.
-# Meses 12 y 24: Fin de contratos de 1 y 2 años
-# Meses 48 y 72: Lealtad del cliente
 
 # Gráfico acumulado
 plt.figure(figsize=(14,6))
@@ -288,51 +284,40 @@ plt.grid(alpha=0.3)
 plt.legend()
 plt.show()
 
-#Comentarios:
-# - Un 5.4% del total de clientes (7,032) se retiran el primer mes, mes en el cual se registra el mayor numero de retiros, lo cual representa un 20.3% de los 1,869 que abandonaron la telefonica.
+#Comentarios inicialess:
+# - Un 5.4% del total de clientes (7,032) se retiran el primer mes siendo el mayor numero = un 20.3% de los 1,869 que abandonaron la telefonica.
 # - Entre el 2do y 5to mes hay retiradas entre 0.91% y 1,75% con respecto al total.
-
-#Metodologia y Modelo:
-# ¿Por qué elegimos este modelo sobre otros, como Regresión Logística, Random Forest, Gradient Boosting o Redes Neuronales?
-#1. Por el manejo de la censura de datos, el cual nos ayuda a no sesgar los resultados como lo harían las Redes Neuronales.
-#2. Porque predice no solo si un cliente abandonará el servicio, sino cuándo lo hará, al contrario de una Regresión Logística.
-#3. Nos ayuda a entender cómo cambia el riesgo de abandono a lo largo del tiempo, sin clasificar de manera binaria (sí/no o 0/1); como lo haría un Random Forest.
-#4. Para calcular la vida del cliente de forma más precisa, dato que no es bien definido utilizando Boosting.
-
+# - Al mes 12, se observa un pico de abandono del 2.5% del total de clientes, coincidiendo con el fin de los contratos anuales.
 #####################################
-#Curva de supervivencia (Kaplan–Meier)
-#Edward Kaplan y Paul Meier presentaron el estimador Kaplan–Meier.
-# Técnica no paramétrica para estimar la probabilidad de supervivencia en función del tiempo, especialmente útil cuando existen datos incompletos o censurados.
-# Este método se convirtió en la herramienta estándar para analizar y visualizar la duración hasta un evento en medicina, ingeniería y negocios.
 
 #Formulacion Matematica:
+from IPython.display import Math, display
+formula = r"""
+\hat{S}(t) = \prod_{t_i \leq t} \left( 1 - \frac{d_i}{n_i} \right)
+"""
+display(Math(formula))
+
 #Sean:
 #S(t): el estimador no parametrico de la supervivencia, mide la probabilidad de que un individuo sobreviva más allá de un tiempo t.
 #t_1<t_2<\dots <t_k: los tiempos en los que ocurren eventos (abandono, falla, muerte).
 # d_i: número de eventos ocurridos en el tiempo t_i.
 # n_i: número de individuos en riesgo justo antes de t_i.
 #[ \hat{S}(t) = \prod_{t_i \leq t} \left( 1 - \frac{d_i}{n_i} \right) ]
+#####################################
 
-from IPython.display import Math, display
-formula = r"""
-\hat{S}(t) = \prod_{t_i \leq t} \left( 1 - \frac{d_i}{n_i} \right)
-"""
-display(Math(formula))
-#######################################
+##1. KAPLAN-MEIER
 
-##1. Curva de Supervivencia KAPLAN-MEIER
-
-# Ajustar el modelo
+# Ajustando
 kmf = KaplanMeierFitter()
 kmf.fit(df['Tenure Months'], df['Churn Value'], label='Supervivencia')
 
-# Graficar la curva de supervivencia
+# Graficando
 ax = kmf.plot(linewidth=3, figsize=(10,6))
 ax.set_ylabel("Probabilidad de supervivencia")
 ax.set_xlabel("Tiempo en meses")
 ax.set_title("Curva de supervivencia de clientes en la Telefónica")
 
-# Forzar que los ejes comiencen en 0
+# Forzando que los ejes comiencen en 0
 ax.set_xlim(left=0)
 ax.set_ylim(0.5, 1.0)   # curva más baja y centrada
 
@@ -357,7 +342,7 @@ for mes in meses:
 plt.show()
 #########################################
 
-# Log Rank Test
+##2.  LOG-RANK TEST
 
 #Verificamos cuales son las variables categoricas
 df.info()
@@ -542,7 +527,7 @@ porcen_churn_reason_nan
 
 ###########################################
 
-# REGRESION COX:
+##3. REGRESION COX:
 
 df.shape
 #total de clientes vs total de variables (7,043 VS 33)
@@ -562,7 +547,6 @@ drop_id_loc = [
     'Monthly Charges', 'Total Charges'
 ]
 
-
 # Verificación de existencia de columnas clave
 assert dur_col in df_cox.columns, f"Falta columna de duración: {dur_col}"
 assert evt_col in df_cox.columns, f"Falta columna de evento: {evt_col}"
@@ -581,7 +565,7 @@ df_cox = df_cox.drop(columns=[c for c in drop_id_loc if c in df_cox.columns])
 print(df_cox.head(3))
 
 # Codificacion de variables categoricas:
-# En virtud que las columnas (Gender, Partner, Internet Service, Contract, etc.) son categoricas,
+# Ya que Gender, Partner, Internet Service, Contract, etc.) son categoricas,
 # es necesario convertirlas en dummies (variables binarias) para que el modelo de COX las use.
 
 # One-Hot Encoding:
@@ -883,11 +867,6 @@ df_all.shape
 
 # #AJUSTE MODELO DE COX CON INTERACCIONES TEMPORALES (CPH):
 
-import numpy as np
-from lifelines import CoxPHFitter
-from lifelines.utils import concordance_index
-from sklearn.model_selection import train_test_split
-
 # Hold-out split
 train, test = train_test_split(
     df_final, test_size=0.3, random_state=42, stratify=df_final[evt_col]
@@ -980,6 +959,40 @@ def interp_baseline_H0_for_model(cph, t):
     vals = s.values.astype(float).squeeze()
     return float(np.interp(t, times, vals))
 
+def compute_survival_curve_for_profile(cph, profile_dict, t_grid):
+    model_cols = list(cph.params_.index)
+    fmap = build_feature_map_from_model_cols(model_cols)
+    X = profile_to_vector_from_model(profile_dict, fmap)
+
+    # rellenar log_t si existe
+    if 'log_t' in model_cols:
+        tenure = float(profile_dict.get('Tenure Months', profile_dict.get('tenure', 0.1)))
+        X[model_cols.index('log_t')] = math.log(max(tenure, 0.1))
+
+    # manejar columnas *_logt
+    for i, col in enumerate(model_cols):
+        if str(col).endswith('_logt'):
+            base_name = str(col)[:-5]
+            if X[i] == 0.0:
+                key_alt = base_name
+                key_alt2 = base_name.replace(' ', '_')
+                base_val = float(profile_dict.get(key_alt, profile_dict.get(key_alt2, 0.0)))
+                if 'log_t' in model_cols:
+                    logt_val = X[model_cols.index('log_t')]
+                else:
+                    logt_val = math.log(max(float(profile_dict.get('Tenure Months', 0.1)), 0.1))
+                X[i] = base_val * logt_val
+
+    beta = cph.params_.values.astype(float).squeeze()
+    if X.shape[0] != beta.shape[0]:
+        raise ValueError(f"Dim mismatch: X={X.shape[0]} vs beta={beta.shape[0]}")
+
+    exp_factor = float(np.exp(float(np.dot(beta, X))))
+    Lambda0_grid = np.array([interp_baseline_H0_for_model(cph, t) for t in t_grid])
+    Lambda_grid = Lambda0_grid * exp_factor
+    S_grid = np.exp(-Lambda_grid)
+    return S_grid, exp_factor
+
 # -------------------------
 # Perfil bueno (usa el dict definido arriba)
 # -------------------------
@@ -1001,46 +1014,30 @@ profile = {
     'Senior Citizen_Yes': 1
 }
 
-# -------------------------
-# Construir vector X y factor exponencial
-# -------------------------
-model_cols = list(cph_td.params_.index)
-fmap = build_feature_map_from_model_cols(model_cols)
-X = profile_to_vector_from_model(profile, fmap)
-
-# rellenar log_t si existe
-if 'log_t' in model_cols:
-    tenure = float(profile.get('Tenure Months', profile.get('tenure', 0.1)))
-    X[model_cols.index('log_t')] = math.log(max(tenure, 0.1))
-
-# manejar columnas *_logt
-for i, col in enumerate(model_cols):
-    if str(col).endswith('_logt'):
-        base_name = str(col)[:-5]
-        if X[i] == 0.0:
-            key_alt = base_name
-            key_alt2 = base_name.replace(' ', '_')
-            base_val = float(profile.get(key_alt, profile.get(key_alt2, 0.0)))
-            if 'log_t' in model_cols:
-                logt_val = X[model_cols.index('log_t')]
-            else:
-                logt_val = math.log(max(float(profile.get('Tenure Months', 0.1)), 0.1))
-            X[i] = base_val * logt_val
-
-beta = cph_td.params_.values.astype(float).squeeze()
-if X.shape[0] != beta.shape[0]:
-    raise ValueError(f"Dim mismatch: X={X.shape[0]} vs beta={beta.shape[0]}")
-
-exp_factor = float(np.exp(float(np.dot(beta, X))))
-print("exp(beta·X) =", exp_factor)
+profile_malo = {
+    'Tenure Months': 1.0,
+    'Contract_Month-to-month': 1,
+    'Contract_One year': 0,
+    'Contract_Two year': 0,
+    'Internet Service_Fiber optic': 1,
+    'Internet Service_No': 0,
+    'Paperless Billing_Yes': 1,
+    'Payment Method_Electronic check': 1,
+    'Payment Method_Mailed check': 0,
+    'Payment Method_Credit card (automatic)': 0,
+    'Dependents_Yes': 0,
+    'Partner_Yes': 0,
+    'Phone Service_Yes': 0,
+    'Gender_Male': 0,
+    'Senior Citizen_Yes': 0
+}
 
 # -------------------------
 # Calcular S(t) en 0..72
 # -------------------------
 t_grid = np.linspace(0, 72, 721)
-Lambda0_grid = np.array([interp_baseline_H0_for_model(cph_td, t) for t in t_grid])
-Lambda_grid = Lambda0_grid * exp_factor
-S_grid = np.exp(-Lambda_grid)
+S_grid, exp_factor = compute_survival_curve_for_profile(cph_td, profile, t_grid)
+print("exp(beta·X) =", exp_factor)
 surv_df = pd.DataFrame({'time': t_grid, 'S': S_grid})
 
 # imprimir S en meses clave
@@ -1073,124 +1070,13 @@ plt.show()
 # 2. Definiendo un Cliente de riesgo malo:
 
 # Versión modificada: la curva y anotaciones indican explícitamente "Perfil malo"
-import numpy as np
-import pandas as pd
-import math
-import matplotlib.pyplot as plt
 
 # -------------------------
-# Helpers (idénticos a los usados antes)
-# -------------------------
-def build_feature_map_from_model_cols(model_cols):
-    fmap = []
-    for col in model_cols:
-        col = str(col)
-        if col == 'log_t' or col.endswith('_logt'):
-            fmap.append((col, None))
-            continue
-        if ('_' in col or ' ' in col) and not col.replace('_','').replace(' ','').replace('.','').isdigit():
-            if '_' in col:
-                parts = col.rsplit('_', 1)
-            else:
-                parts = col.rsplit(' ', 1)
-            feat, cat = parts[0], parts[1]
-            fmap.append((feat, cat))
-        else:
-            fmap.append((col, None))
-    return fmap
-
-def profile_to_vector_from_model(profile_dict, feature_map):
-    x = []
-    for feat, cat in feature_map:
-        if cat is None:
-            x.append(float(profile_dict.get(feat, 0.0)))
-        else:
-            val = profile_dict.get(feat)
-            if val is None:
-                key_exact = f"{feat}_{cat}"
-                x.append(float(profile_dict.get(key_exact, 0.0)))
-            else:
-                if isinstance(val, (int, float)):
-                    x.append(1.0 if float(val) == 1.0 else 0.0)
-                else:
-                    x.append(1.0 if str(val) == str(cat) else 0.0)
-    return np.array(x, dtype=float)
-
-def interp_baseline_H0_for_model(cph, t):
-    H0_df = cph.baseline_cumulative_hazard_.copy()
-    if isinstance(H0_df, pd.Series):
-        s = H0_df.astype(float).copy()
-    else:
-        if H0_df.shape[1] == 1:
-            s = H0_df.iloc[:,0].astype(float).copy()
-        else:
-            col = H0_df.columns[0]
-            s = H0_df[col].astype(float).copy()
-    times = s.index.values.astype(float)
-    vals = s.values.astype(float).squeeze()
-    return float(np.interp(t, times, vals))
-
-# -------------------------
-# Perfil (cliente regular)
-# -------------------------
-profile_dict = {
-    'Tenure Months': 1.0,
-    'Contract_Month-to-month': 1,
-    'Contract_One year': 0,
-    'Contract_Two year': 0,
-    'Internet Service_Fiber optic': 1,
-    'Internet Service_No': 0,
-    'Paperless Billing_Yes': 1,
-    'Payment Method_Electronic check': 1,
-    'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 0,
-    'Dependents_Yes': 0,
-    'Partner_Yes': 0,
-    'Phone Service_Yes': 0,
-    'Gender_Male': 0,
-    'Senior Citizen_Yes': 0
-}
-
 # -------------------------
 # Construir S(t) para el perfil en 0..72
 # -------------------------
-model_cols = list(cph_td.params_.index)
-fmap = build_feature_map_from_model_cols(model_cols)
-X = profile_to_vector_from_model(profile_dict, fmap)
-
-# rellenar log_t si existe (usar Tenure Months)
-if 'log_t' in model_cols:
-    tenure = float(profile_dict.get('Tenure Months', profile_dict.get('tenure', 0.1)))
-    logt_val = math.log(max(tenure, 0.1))
-    X[model_cols.index('log_t')] = logt_val
-
-# manejar columnas *_logt
-for i, col in enumerate(model_cols):
-    if str(col).endswith('_logt'):
-        base_name = str(col)[:-5]
-        if X[i] == 0.0:
-            key_alt = base_name
-            key_alt2 = base_name.replace(' ', '_')
-            base_val = float(profile_dict.get(key_alt, profile_dict.get(key_alt2, 0.0)))
-            if 'log_t' in model_cols:
-                logt_val = X[model_cols.index('log_t')]
-            else:
-                logt_val = math.log(max(float(profile_dict.get('Tenure Months', 0.1)), 0.1))
-            X[i] = base_val * logt_val
-
-beta = cph_td.params_.values.astype(float).squeeze()
-if X.shape[0] != beta.shape[0]:
-    raise ValueError(f"Dimensión mismatch: X={X.shape[0]} vs beta={beta.shape[0]}")
-
-exp_factor = float(np.exp(float(np.dot(beta, X))))
-
-# grilla de tiempos y cálculo de S(t)
 t_grid = np.linspace(0, 72, 721)  # paso 0.1 mes
-Lambda0_grid = np.array([interp_baseline_H0_for_model(cph_td, t) for t in t_grid])
-Lambda_grid = Lambda0_grid * exp_factor
-S_grid = np.exp(-Lambda_grid)
-
-# DataFrame con la supervivencia del perfil
+S_grid, exp_factor = compute_survival_curve_for_profile(cph_td, profile_malo, t_grid)
 surv_profile_df = pd.DataFrame({'time': t_grid, 'S': S_grid})
 
 # -------------------------
@@ -1282,154 +1168,52 @@ def churn_prob_interval_from_profile_cph(model, profile_dict, t1, t2):
     ...
     return prob
 
-import math
-
-# --- 1) Define aquí el perfil que quieras evaluar ---
-# Ejemplo: perfil "malo" (alto riesgo)
-profile_dict = {
-    'Tenure Months': 1.0,
-    'Contract_Month-to-month': 1,
+profile_bueno = {
+    'Tenure Months': 12.0,
+    'Contract_Month-to-month': 0,
     'Contract_One year': 0,
-    'Contract_Two year': 0,
-    'Internet Service_Fiber optic': 1,
+    'Contract_Two year': 1,
+    'Internet Service_Fiber optic': 0,
     'Internet Service_No': 0,
-    'Paperless Billing_Yes': 1,
-    'Payment Method_Electronic check': 1,
+    'Paperless Billing_Yes': 0,
+    'Payment Method_Electronic check': 0,
     'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 0,
-    'Dependents_Yes': 0,
-    'Partner_Yes': 0,
-    'Phone Service_Yes': 0,
-    'Gender_Male': 0,
+    'Payment Method_Credit card (automatic)': 1,
+    'Dependents_Yes': 1,
+    'Partner_Yes': 1,
+    'Phone Service_Yes': 1,
+    'Gender_Male': 1,
     'Senior Citizen_Yes': 0
 }
 
-# --- 2) Intervalo de interés ---
-t1, t2 = 1.0, 12.0   # meses
+def print_conditional_summary(model, profile_dict, t1, t2):
+    prob_abs = churn_prob_interval_from_profile_cph(model, profile_dict, t1, t2)
+    model_cols = list(model.params_.index)
+    fmap = build_feature_map_from_model_cols(model_cols)
+    X = profile_to_vector_from_model(profile_dict, fmap)
+    beta = model.params_.values.astype(float).squeeze()
+    exp_factor = float(math.exp(float(np.dot(beta, X))))
 
-# --- 3) Probabilidad absoluta (P(t1 < T <= t2)) usando la función existente ---
-prob_abs = churn_prob_interval_from_profile_cph(cph_td, profile_dict, t1, t2)
+    Lam1_0 = interp_baseline_H0_for_model(model, t1)
+    Lam2_0 = interp_baseline_H0_for_model(model, t2)
+    Lam1 = Lam1_0 * exp_factor
+    Lam2 = Lam2_0 * exp_factor
+    S1 = math.exp(-Lam1)
+    S2 = math.exp(-Lam2)
 
-# --- 4) Calcular componentes para la probabilidad condicional ---
-# Reconstruir X y exp_factor (usa las funciones auxiliares que definiste)
-model_cols = list(cph_td.params_.index)
-fmap = build_feature_map_from_model_cols(model_cols)
-X = profile_to_vector_from_model(profile_dict, fmap)
-beta = cph_td.params_.values.astype(float).squeeze()
-exp_factor = float(math.exp(float(np.dot(beta, X))))
+    prob_cond = 1.0 - math.exp(-(Lam2 - Lam1))
 
-# Baseline cumulative hazard en t1 y t2
-Lam1_0 = interp_baseline_H0_for_model(cph_td, t1)
-Lam2_0 = interp_baseline_H0_for_model(cph_td, t2)
+    print("Perfil usado:", profile_dict)
+    print(f"P_abs (t1,t2] = {prob_abs:.6g}")
+    print(f"S(t1) = {S1:.6g}, S(t2) = {S2:.6g}")
+    print(f"exp(beta·X) = {exp_factor:.6g}")
+    print(f"Lambda0(t1) = {Lam1_0:.6g}, Lambda0(t2) = {Lam2_0:.6g}")
+    print(f"Lambda(t1) = {Lam1:.6g}, Lambda(t2) = {Lam2:.6g}")
+    print()
+    print(f"P_conditional | T>t1 = {prob_cond:.6g} ")
 
-# Lambda y supervivencias
-Lam1 = Lam1_0 * exp_factor
-Lam2 = Lam2_0 * exp_factor
-S1 = math.exp(-Lam1)
-S2 = math.exp(-Lam2)
-
-# Probabilidad condicional dado supervivencia a t1
-prob_cond = 1.0 - math.exp(-(Lam2 - Lam1))
-# alternativa numérica (debe coincidir salvo redondeos)
-prob_cond_alt = prob_abs / S1 if S1 > 0 else float('nan')
-
-# --- 5) Mostrar resultados ---
-print("Perfil usado:", profile_dict)
-print(f"P_abs (t1,t2] = {prob_abs:.6g}")
-print(f"S(t1) = {S1:.6g}, S(t2) = {S2:.6g}")
-print(f"exp(beta·X) = {exp_factor:.6g}")
-print(f"Lambda0(t1) = {Lam1_0:.6g}, Lambda0(t2) = {Lam2_0:.6g}")
-print(f"Lambda(t1) = {Lam1:.6g}, Lambda(t2) = {Lam2:.6g}")
-print()
-
-print(f"P_conditional | T>t1 = {prob_cond:.6g} ")
-
-#####################################
-
-import math
-
-# --- 1) Define aquí el perfil que quieras evaluar ---
-# Ejemplo: perfil "malo" (alto riesgo)
-profile_dict = {
-    'Tenure Months': 1.0,
-    'Contract_Month-to-month': 1,
-    'Contract_One year': 0,
-    'Contract_Two year': 0,
-    'Internet Service_Fiber optic': 1,
-    'Internet Service_No': 0,
-    'Paperless Billing_Yes': 1,
-    'Payment Method_Electronic check': 1,
-    'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 0,
-    'Dependents_Yes': 0,
-    'Partner_Yes': 0,
-    'Phone Service_Yes': 0,
-    'Gender_Male': 0,
-    'Senior Citizen_Yes': 0
-}
-
-# --- 2) Intervalo de interés ---
-t1, t2 = 6.0, 12.0   # meses
-
-# --- 3) Probabilidad absoluta (P(t1 < T <= t2)) usando la función existente ---
-prob_abs = churn_prob_interval_from_profile_cph(cph_td, profile_dict, t1, t2)
-
-# --- 4) Calcular componentes para la probabilidad condicional ---
-# Reconstruir X y exp_factor (usa las funciones auxiliares que definiste)
-model_cols = list(cph_td.params_.index)
-fmap = build_feature_map_from_model_cols(model_cols)
-X = profile_to_vector_from_model(profile_dict, fmap)
-beta = cph_td.params_.values.astype(float).squeeze()
-exp_factor = float(math.exp(float(np.dot(beta, X))))
-
-# Baseline cumulative hazard en t1 y t2
-Lam1_0 = interp_baseline_H0_for_model(cph_td, t1)
-Lam2_0 = interp_baseline_H0_for_model(cph_td, t2)
-
-# Lambda y supervivencias
-Lam1 = Lam1_0 * exp_factor
-Lam2 = Lam2_0 * exp_factor
-S1 = math.exp(-Lam1)
-S2 = math.exp(-Lam2)
-
-# Probabilidad condicional dado supervivencia a t1
-prob_cond = 1.0 - math.exp(-(Lam2 - Lam1))
-# alternativa numérica (debe coincidir salvo redondeos)
-prob_cond_alt = prob_abs / S1 if S1 > 0 else float('nan')
-
-# --- 5) Mostrar resultados ---
-print("Perfil usado:", profile_dict)
-print(f"P_abs (t1,t2] = {prob_abs:.6g}")
-print(f"S(t1) = {S1:.6g}, S(t2) = {S2:.6g}")
-print(f"exp(beta·X) = {exp_factor:.6g}")
-print(f"Lambda0(t1) = {Lam1_0:.6g}, Lambda0(t2) = {Lam2_0:.6g}")
-print(f"Lambda(t1) = {Lam1:.6g}, Lambda(t2) = {Lam2:.6g}")
-print()
-
-print(f"P_conditional | T>t1 = {prob_cond:.6g} ")
-
-import numpy as np
-import matplotlib.pyplot as plt
-import math
-
-# --- 1) Perfil de cliente a evaluar ---
-profile_dict = {
-    'Tenure Months': 1.0,
-    'Contract_Month-to-month': 1,
-    'Contract_One year': 0,
-    'Contract_Two year': 0,
-    'Internet Service_Fiber optic': 1,
-    'Internet Service_No': 0,
-    'Paperless Billing_Yes': 1,
-    'Payment Method_Electronic check': 1,
-    'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 0,
-    'Dependents_Yes': 0,
-    'Partner_Yes': 0,
-    'Phone Service_Yes': 0,
-    'Gender_Male': 0,
-    'Senior Citizen_Yes': 0
-}
+print_conditional_summary(cph_td, profile_malo, 1.0, 12.0)
+print_conditional_summary(cph_td, profile_malo, 6.0, 12.0)
 
 # --- 2) Función para calcular probabilidad condicional en un intervalo ---
 def prob_conditional_interval(model, profile_dict, t1, t2):
@@ -1449,16 +1233,14 @@ def prob_conditional_interval(model, profile_dict, t1, t2):
     prob_cond = 1.0 - math.exp(-(Lam2 - Lam1))
     return prob_cond
 
-# --- 3) Construir el "reloj" ---
-# Intervalos de tiempo (ejemplo: meses 1 a 12)
-t_values = np.arange(1, 13)  # meses
+# --- 3) Reloj de churn (perfil malo) ---
+t_values = np.arange(1, 13)  # meses 1 a 12
 probs = []
 
 for t in t_values[:-1]:
-    p = prob_conditional_interval(cph_td, profile_dict, t, t+1)
+    p = prob_conditional_interval(cph_td, profile_malo, t, t+1)
     probs.append(p)
 
-# --- 4) Graficar ---
 plt.figure(figsize=(10,6))
 plt.plot(t_values[:-1], probs, marker='o', linestyle='-', color='navy')
 plt.title("El Reloj del Churn: Probabilidad Condicional por Mes")
@@ -1473,67 +1255,7 @@ for i, p in enumerate(probs):
 
 plt.show()
 
-import numpy as np
-import matplotlib.pyplot as plt
-import math
-
-# --- 1) Definir dos perfiles ---
-# Perfil "malo" (alto riesgo)
-profile_malo = {
-    'Tenure Months': 1.0,
-    'Contract_Month-to-month': 1,
-    'Contract_One year': 0,
-    'Contract_Two year': 0,
-    'Internet Service_Fiber optic': 1,
-    'Internet Service_No': 0,
-    'Paperless Billing_Yes': 1,
-    'Payment Method_Electronic check': 1,
-    'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 0,
-    'Dependents_Yes': 0,
-    'Partner_Yes': 0,
-    'Phone Service_Yes': 0,
-    'Gender_Male': 0,
-    'Senior Citizen_Yes': 0
-}
-
-# Perfil "bueno" (bajo riesgo)
-profile_bueno = {
-    'Tenure Months': 12.0,
-    'Contract_Month-to-month': 0,
-    'Contract_One year': 0,
-    'Contract_Two year': 1,
-    'Internet Service_Fiber optic': 0,
-    'Internet Service_No': 0,
-    'Paperless Billing_Yes': 0,
-    'Payment Method_Electronic check': 0,
-    'Payment Method_Mailed check': 0,
-    'Payment Method_Credit card (automatic)': 1,
-    'Dependents_Yes': 1,
-    'Partner_Yes': 1,
-    'Phone Service_Yes': 1,
-    'Gender_Male': 1,
-    'Senior Citizen_Yes': 0
-}
-
-# --- 2) Función para calcular probabilidad condicional ---
-def prob_conditional_interval(model, profile_dict, t1, t2):
-    model_cols = list(model.params_.index)
-    fmap = build_feature_map_from_model_cols(model_cols)
-    X = profile_to_vector_from_model(profile_dict, fmap)
-    beta = model.params_.values.astype(float).squeeze()
-    exp_factor = float(np.exp(np.dot(beta, X)))
-
-    Lam1_0 = interp_baseline_H0_for_model(model, t1)
-    Lam2_0 = interp_baseline_H0_for_model(model, t2)
-
-    Lam1 = Lam1_0 * exp_factor
-    Lam2 = Lam2_0 * exp_factor
-
-    prob_cond = 1.0 - math.exp(-(Lam2 - Lam1))
-    return prob_cond
-
-# --- 3) Construir el reloj para ambos perfiles ---
+# --- 4) Construir el reloj para ambos perfiles ---
 t_values = np.arange(1, 11)  # meses 1 a 10
 probs_malo = []
 probs_bueno = []
@@ -1552,53 +1274,4 @@ plt.xlabel("Intervalo (mes t → t+1)")
 plt.ylabel("Probabilidad condicional de churn")
 plt.legend()
 plt.grid(True)
-plt.show()
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Supongamos que ya tienes la lista de probabilidades condicionales
-# probs = [p1, p2, p3, ...] calculadas con tu función prob_conditional_interval
-
-# Calcular incrementos porcentuales
-increments = []
-for i in range(1, len(probs)):
-    if probs[i-1] > 0:
-        inc = (probs[i] - probs[i-1]) / probs[i-1] * 100
-    else:
-        inc = np.nan  # evitar división por cero
-    increments.append(inc)
-
-# Graficar
-plt.figure(figsize=(10,6))
-plt.plot(range(2, len(probs)+1), increments, marker='o', linestyle='-', color='purple')
-plt.title("Incremento porcentual de la probabilidad condicional de churn")
-plt.xlabel("Intervalo (mes t → t+1)")
-plt.ylabel("Incremento porcentual (%)")
-plt.grid(True)
-plt.show()
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Supongamos que ya calculaste las probabilidades condicionales
-# probs = [p1, p2, p3, ...] para cada mes
-# Aquí pongo un ejemplo ficticio
-probs = [0.0002, 0.002, 0.005, 0.01, 0.015, 0.03, 0.05, 0.07, 0.09, 0.12]
-
-# Ángulos para cada mes (convertidos a radianes)
-months = np.arange(1, len(probs)+1)
-angles = np.linspace(0, 2*np.pi, len(probs), endpoint=False)
-
-# Gráfico polar
-plt.figure(figsize=(8,8))
-ax = plt.subplot(111, polar=True)
-ax.plot(angles, probs, marker='o', linestyle='-', color='navy')
-ax.fill(angles, probs, alpha=0.3, color='skyblue')
-
-# Etiquetas de meses alrededor del círculo
-ax.set_xticks(angles)
-ax.set_xticklabels([f"Mes {m}" for m in months])
-
-ax.set_title("Reloj del Churn (Probabilidad Condicional)", va='bottom')
 plt.show()

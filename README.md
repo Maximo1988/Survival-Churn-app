@@ -1,7 +1,17 @@
 # Survival-Churn-Analysis
 
-Breve guía de uso (CLI):
+## ¿Por qué elegimos este modelo sobre otros como Regresión Logística, Random Forest, Gradient Boosting o Redes Neuronales?
 
+#1. Por el manejo de la censura de datos, el cual nos ayuda a no sesgar los resultados como lo harían las Redes Neuronales.
+
+#2. Porque predice no solo si un cliente abandonará el servicio, sino cuándo lo hará, al contrario de una Regresión Logística.
+
+#3. Nos ayuda a entender cómo cambia el riesgo de abandono a lo largo del tiempo, sin clasificar de manera binaria (sí/no o 0/1); como lo haría un Random Forest.
+
+#4. Para calcular la vida del cliente de forma más precisa, dato que no es bien definido utilizando Boosting.
+--------------------------
+
+Breve guía de uso (CLI):
 - Ejecuta el análisis principal (sin mostrar ni guardar figuras):
 
 ```powershell
