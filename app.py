@@ -117,16 +117,21 @@ def fit_cox_for_var(df, duration_col, event_col, var, include_numeric=False):
         return None, None, None, str(e)
 
 @st.cache_resource
-def fit_cox_time_interaction_model(df):
+def fit_cox_time_interaction_model(df, selected_vars=None):
     # Modelo Cox con interacciones temporales para predicciones
     dur_col = 'Tenure Months'
     evt_col = 'Churn Value'
 
-    categorical_features = [
+    default_features = [
         'Gender', 'Senior Citizen', 'Partner', 'Dependents',
         'Phone Service', 'Contract', 'Internet Service',
         'Paperless Billing', 'Payment Method'
     ]
+
+    if selected_vars:
+        categorical_features = [c for c in selected_vars if c in df.columns]
+    else:
+        categorical_features = default_features
 
     # Filtrar columnas categóricas disponibles
     categorical_features = [c for c in categorical_features if c in df.columns]
@@ -137,7 +142,10 @@ def fit_cox_time_interaction_model(df):
     df_base[evt_col] = pd.to_numeric(df_base[evt_col], errors='coerce')
 
     # Dummies
-    df_dummies = pd.get_dummies(df[categorical_features], drop_first=True)
+    if categorical_features:
+        df_dummies = pd.get_dummies(df[categorical_features], drop_first=True)
+    else:
+        df_dummies = pd.DataFrame(index=df.index)
     df_model = pd.concat([df_base, df_dummies], axis=1)
 
     # Filtrar filas válidas
@@ -392,6 +400,9 @@ def render_cox_predictions_section(df, selected_vars=None):
     # Preparar descripciones personalizadas
     if selected_vars is None or len(selected_vars) == 0:
         selected_vars = ['Contract', 'Internet Service', 'Payment Method', 'Partner', 'Dependents']
+    selected_vars = list(dict.fromkeys([v for v in selected_vars if v in df.columns]))
+    if not selected_vars:
+        selected_vars = ['Contract', 'Internet Service', 'Payment Method', 'Partner', 'Dependents']
     
     descriptions = generate_dynamic_descriptions(selected_vars)
     
@@ -414,7 +425,7 @@ def render_cox_predictions_section(df, selected_vars=None):
             """)
 
     try:
-        cph_td = fit_cox_time_interaction_model(df)
+        cph_td = fit_cox_time_interaction_model(df, selected_vars=tuple(selected_vars))
     except Exception as e:
         st.warning(f"No se pudo ajustar el modelo de predicciones COX: {e}")
         return
