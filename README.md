@@ -42,3 +42,14 @@ Notas:
 - Por defecto las figuras se guardan en `plots/` si usas `--save-plots`.
 - Si quieres ejecutar el código desde otra carpeta: el script busca el CSV con ruta relativa al propio archivo (`Telco_customer_churn.csv`).
 - Para un uso interactivo más cómodo, ejecuta el archivo en una terminal dentro de la carpeta del proyecto o usa `--show-plots`.
+
+--------------------------
+
+Despliegue en Render (Streamlit):
+- Build Command: `pip install -r requirements.txt`
+- Start Command:
+	`streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
+
+Notas:
+- Render exige escuchar en `0.0.0.0` y en el puerto indicado por `PORT` (por defecto 10000).
+- También puedes usar el archivo `render.yaml` incluido en la raíz del proyecto.
