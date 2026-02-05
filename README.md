@@ -9,6 +9,8 @@
 #3. Nos ayuda a entender cómo cambia el riesgo de abandono a lo largo del tiempo, sin clasificar de manera binaria (sí/no o 0/1); como lo haría un Random Forest.
 
 #4. Para calcular la vida del cliente de forma más precisa, dato que no es bien definido utilizando Boosting.
+
+
 --------------------------
 
 Breve guía de uso (CLI):
