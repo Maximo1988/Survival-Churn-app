@@ -57,7 +57,6 @@ def compute_logrank_pairs(df, duration_col, event_col, group_col):
             res = logrank_test(df[mask1][duration_col], df[mask2][duration_col],
                                event_observed_A=df[mask1][event_col], event_observed_B=df[mask2][event_col])
             p = res.p_value
-            # Intentando calcular HR a través de Cox en los dos grupos (cat2 vs cat1)
             hr = hr_lower = hr_upper = None
             try:
                 subset = df[df[group_col].isin([cat1, cat2])][[duration_col, event_col, group_col]].dropna()
@@ -75,18 +74,14 @@ def compute_logrank_pairs(df, duration_col, event_col, group_col):
     return results
 
 def fit_cox_for_var_no_cache(df, duration_col, event_col, var, include_numeric=False):
-    """Versión sin caché de fit_cox_for_var para comparaciones que necesitan actualizar dinámicamente."""
     d = df[[duration_col, event_col, var]].copy()
-    # Codificar variable categórica con one-hot
     dummies = pd.get_dummies(d[var], prefix=var.replace(' ', '_'), drop_first=True)
     X = pd.concat([d[[duration_col, event_col]].reset_index(drop=True), dummies.reset_index(drop=True)], axis=1)
-    # Opcionalmente incluir Monthly Charges si está presente y se solicita
     if include_numeric and 'Monthly Charges' in df.columns:
         try:
             X = pd.concat([X, df.loc[X.index, ['Monthly Charges']].reset_index(drop=True)], axis=1)
         except Exception:
             pass
-    # Eliminar NA y asegurar tipo numérico
     X = X.dropna()
     try:
         cph = CoxPHFitter()
@@ -95,7 +90,6 @@ def fit_cox_for_var_no_cache(df, duration_col, event_col, var, include_numeric=F
         concord = cph.concordance_index_
         return cph, hr, concord, None
     except Exception as e:
-        # Devolver el texto de la excepción para explicar por qué falló el modelo
         return None, None, None, str(e)
 
 @st.cache_data
@@ -298,7 +292,13 @@ def generate_dynamic_descriptions(selected_vars):
         var_descriptions['malo'] = "⚠️ **El cliente en riesgo:** Es nuevo (1 mes) con características negativas. Esto es un combo peligroso. La línea roja desciende rápidamente: al mes 24 solo le quedan ~20%. Los marcadores muestran la **caída acelerada**."
     
     # Descripción del Reloj del Churn - más amigable
-    var_descriptions['reloj'] = f"⏰ **¿Cuándo se van?** Este gráfico responde: si el cliente *aún no se fue*, ¿cuál es su riesgo de irse *en el próximo mes*? Analizamos {', '.join(selected_vars[:3]) if selected_vars else 'las variables seleccionadas'} para el perfil de riesgo. Los **picos = períodos críticos** donde necesitas intervenir. Las **depresiones = meses más seguros**."
+    vars_text = ', '.join(selected_vars[:3]) if selected_vars else 'las variables seleccionadas'
+    var_descriptions['reloj'] = (
+        f"⏰ **Reloj de churn (riesgo mes a mes)**: Este gráfico muestra el **riesgo de abandono en el próximo mes** "
+        f"*solo para clientes que siguen activos hasta hoy*. Las predicciones se calculan usando **{vars_text}** "
+        f"(y sus categorías) para construir el perfil. **Picos** = meses con mayor peligro de churn; "
+        f"**valles** = meses relativamente seguros. Úsalo para decidir **cuándo** intervenir con ofertas o seguimiento."
+    )
     
     # Descripción de Comparación - más visual
     var_descriptions['comparacion'] = f"🔄 **Lado a lado:** Rojo vs Verde. El rojo (alto riesgo) oscila entre 15-30% de abandono mensual los primeros meses. El verde (bajo riesgo) se mantiene por debajo del 5%. Esta **brecha visible** te muestra exactamente el impacto de {', '.join(selected_vars[:2]) if selected_vars else 'tus variables'} en la retención."
@@ -473,35 +473,46 @@ def render_cox_predictions_section(df, selected_vars=None):
     # Reloj del Churn: probabilidad condicional por mes (perfil malo)
     st.markdown("#### ⏰ Reloj del Churn — Mes a Mes")
     st.caption(descriptions['reloj'])
+    month_names = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
     t_values = np.arange(1, 13)
-    probs = [prob_conditional_interval(cph_td, profile_malo, t, t+1) for t in t_values[:-1]]
-    fig, ax = plt.subplots(figsize=(8, 3.5), facecolor='black')
+    probs = [prob_conditional_interval(cph_td, profile_malo, t, t+1) for t in t_values]
+    fig, ax = plt.subplots(figsize=(7.2, 3.4), facecolor='black')
     ax.set_facecolor('black')
-    ax.plot(t_values[:-1], probs, marker='o', linestyle='-', color='cyan')
+    ax.plot(t_values, probs, marker='o', linestyle='-', color='cyan')
     ax.set_title("Probabilidad condicional de churn por mes", color='white')
     ax.set_xlabel("Mes", color='white')
     ax.set_ylabel("Probabilidad condicional", color='white')
+    ax.set_xticks(t_values)
+    ax.set_xticklabels(month_names[:len(t_values)], rotation=45, ha='right', color='white', fontsize=8)
     ax.tick_params(colors='white')
     ax.grid(True, alpha=0.3, color='white')
+    fig.subplots_adjust(bottom=0.28)
     st.pyplot(fig)
     plt.close(fig)
+
 
     # Comparación de perfiles (malo vs bueno)
     st.markdown("#### ⚖️ Comparación: ¿Cuál es la diferencia?")
     st.caption(descriptions['comparacion'])
-    t_values = np.arange(1, 11)
-    probs_malo = [prob_conditional_interval(cph_td, profile_malo, t, t+1) for t in t_values[:-1]]
-    probs_bueno = [prob_conditional_interval(cph_td, profile_bueno, t, t+1) for t in t_values[:-1]]
-    fig, ax = plt.subplots(figsize=(8, 3.5), facecolor='black')
+    t_values = np.arange(1, 13)
+    probs_malo = [prob_conditional_interval(cph_td, profile_malo, t, t+1) for t in t_values]
+    probs_bueno = [prob_conditional_interval(cph_td, profile_bueno, t, t+1) for t in t_values]
+    fig, ax = plt.subplots(figsize=(6.4, 2.8), facecolor='black')
     ax.set_facecolor('black')
-    ax.plot(t_values[:-1], probs_malo, marker='o', linestyle='-', color='red', label='Perfil alto riesgo')
-    ax.plot(t_values[:-1], probs_bueno, marker='o', linestyle='-', color='green', label='Perfil bajo riesgo')
+    ax.plot(t_values, probs_malo, marker='o', linestyle='-', color='red', label='Perfil alto riesgo')
+    ax.plot(t_values, probs_bueno, marker='o', linestyle='-', color='green', label='Perfil bajo riesgo')
     ax.set_title("Reloj del Churn — Comparación de perfiles", color='white')
     ax.set_xlabel("Intervalo (mes t → t+1)", color='white')
     ax.set_ylabel("Probabilidad condicional de churn", color='white')
+    ax.set_xticks(t_values)
+    ax.set_xticklabels(month_names[:len(t_values)], rotation=45, ha='right', color='white', fontsize=8)
     ax.tick_params(colors='white')
     ax.legend(facecolor='black', edgecolor='white', labelcolor='white')
     ax.grid(True, alpha=0.3, color='white')
+    fig.subplots_adjust(bottom=0.28)
     st.pyplot(fig)
     plt.close(fig)
 
@@ -529,14 +540,37 @@ def render_cox_predictions_section(df, selected_vars=None):
     # Gráfico polar (perfil malo)
     st.markdown("#### 🔄 Vista Circular del Riesgo (Reloj Visual)")
     st.caption("**Visualización cíclica** del riesgo: cada mes ocupa una posición en el \"reloj\". La distancia desde el centro = riesgo. Detecta patrones estacionales o cíclicos en abandonos. Para este perfil, los meses iniciales (1-3) están más alejados, indicando riesgo máximo al inicio.")
+    month_names = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+    slider_col, pct_col = st.columns([3, 1])
+    with slider_col:
+        selected_month = st.slider("🕒 Línea de tiempo (mes)", min_value=1, max_value=len(probs), value=1, step=1)
+    with pct_col:
+        sel_idx = selected_month - 1
+        pct = probs[sel_idx] * 100 if len(probs) > 0 else 0
+        st.metric("Riesgo próximo mes", f"{pct:.2f}%")
+        st.caption("Probabilidad condicional de churn")
     months = np.arange(1, len(probs)+1)
     angles = np.linspace(0, 2*np.pi, len(probs), endpoint=False)
-    fig = plt.figure(figsize=(5, 5), facecolor='black')
+    fig = plt.figure(figsize=(4, 4), facecolor='black')
     ax = plt.subplot(111, polar=True, facecolor='black')
     ax.plot(angles, probs, marker='o', linestyle='-', color='cyan')
     ax.fill(angles, probs, alpha=0.3, color='cyan')
-    ax.set_xticks(angles)
-    ax.set_xticklabels([f"Mes {m}" for m in months], color='white')
+
+    # Aguja según mes seleccionado
+    sel_angle = angles[sel_idx]
+    sel_radius = probs[sel_idx]
+    ax.plot([sel_angle, sel_angle], [0, sel_radius], color='yellow', linewidth=2)
+    ax.scatter([sel_angle], [sel_radius], color='yellow', s=80, edgecolor='white', linewidth=1.2, zorder=5)
+    if len(probs) <= 12:
+        ax.set_xticks(angles)
+        ax.set_xticklabels([month_names[(m - 1) % 12] for m in months], color='white', fontsize=8)
+    else:
+        tick_idx = np.arange(0, len(probs), 6)
+        ax.set_xticks(angles[tick_idx])
+        ax.set_xticklabels([str(months[i]) for i in tick_idx], color='white', fontsize=8)
     ax.set_title("Reloj del Churn (Probabilidad Condicional)", va='bottom', color='white')
     ax.tick_params(colors='white')
     ax.spines['polar'].set_color('white')
@@ -559,7 +593,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>Retención Inteligente: Anticipando el Churn</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1f77b4;'>Retención Inteligente: Anticipando el Churn</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 df = load_data()
 
@@ -587,12 +621,24 @@ with st.sidebar:
     available = list(dict.fromkeys(available))
     default_sel = [x for x in recommended[:3] if x in available]
 
-    selected = st.multiselect("Seleccion de variables:", options=available, default=default_sel)
+    selected = st.multiselect("Seleccion de variables:", options=available, default=default_sel, key="selected_vars")
+    selected_tuple = tuple(selected)
+    prev_selected = st.session_state.get("selected_vars_prev")
+    if prev_selected != selected_tuple:
+        st.session_state["selected_vars_prev"] = selected_tuple
+        st.session_state["cox_ready"] = False
+        st.session_state["cox_ready_set"] = False
+        try:
+            compute_km.clear()
+            compute_logrank_pairs.clear()
+            fit_cox_for_var.clear()
+        except Exception:
+            pass
     st.caption("Sugerencia: selecciona una sola variable para análisis más claro, o varias para comparar múltiples variables una a una")
 
     st.markdown("---")
     st.write("Instrucciones:")
-    st.write("Para cada variable seleccionada, verás las curvas de supervivencia siguientes, según corresponda:")
+    st.write("Para cada variable seleccionada, verás las curvas o pruebas de supervivencia siguientes, según corresponda:")
     st.markdown("• Kaplan-Meier\n• Log-Rank\n• Regresión COX")
     include_numeric = st.checkbox("Incluir 'Monthly Charges' en el modelo COX", value=True)
 
@@ -628,7 +674,7 @@ else:
     with choice_cols[1]:
         model_options = ["KM", "Log‑Rank", "Cox"]
         if st.session_state.get("cox_ready"):
-            model_options.append("Predicciones")
+            model_options.append("⭐ Predicciones")
         # Usar session_state para mantener la selección del usuario
         current_choice = st.session_state.get("view_choice_global", "KM")
         # Si la opción actual no está en model_options (ej: quitó "Predicciones"), resetear a KM
@@ -709,83 +755,96 @@ else:
     
     st.markdown("---")
 
-    if view_choice == "Predicciones":
+    if view_choice == "KM":
+        st.markdown("### Kaplan–Meier (KM) — Curva general")
+        st.caption("Gráfica actualizada con las variables seleccionadas")
+        try:
+            plotted = False
+            summaries = []
+            last_surv = []
+            if PLOTLY_AVAILABLE:
+                fig = go.Figure()
+                for var in selected:
+                    km_results = compute_km(df, 'Tenure Months', 'Churn Value', var)
+                    for grp, res in km_results.items():
+                        if res is None or res.empty:
+                            continue
+                        label = f"{var}: {grp}"
+                        fig.add_trace(go.Scatter(
+                            x=res['timeline'], y=res['survival'], mode='lines', name=label,
+                            hovertemplate=f'{label}<br>Mes: %{{x}}<br>Supervivencia: %{{y:.3f}}<extra></extra>'
+                        ))
+                        plotted = True
+                        surv = res['survival']
+                        timeline = res['timeline']
+                        median_time = None
+                        if (surv <= 0.5).any():
+                            median_time = timeline[surv <= 0.5].iloc[0]
+                        last_surv.append((label, float(surv.iloc[-1]), float(timeline.iloc[-1])))
+                        if median_time is None:
+                            summaries.append(f"**{label}**: la mayoría de clientes permanece activa durante todo el periodo analizado.")
+                        else:
+                            summaries.append(f"**{label}**: aproximadamente la mitad abandona después de {median_time:.0f} meses.")
+
+                if not plotted:
+                    st.markdown("<h3 style='color:red'>No se pudo ajustar Kaplan–Meier: datos insuficientes</h3>", unsafe_allow_html=True)
+                else:
+                    fig.update_layout(
+                        title='Curvas KM (variables seleccionadas)',
+                        xaxis_title='Tiempo (meses)',
+                        yaxis_title='Probabilidad de supervivencia',
+                        template='plotly_white'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                fig, ax = plt.subplots(figsize=(9, 5))
+                for var in selected:
+                    km_results = compute_km(df, 'Tenure Months', 'Churn Value', var)
+                    for grp, res in km_results.items():
+                        if res is None or res.empty:
+                            continue
+                        label = f"{var}: {grp}"
+                        ax.step(res['timeline'], res['survival'], where='post', label=label)
+                        plotted = True
+                        surv = res['survival']
+                        timeline = res['timeline']
+                        median_time = None
+                        if (surv <= 0.5).any():
+                            median_time = timeline[surv <= 0.5].iloc[0]
+                        last_surv.append((label, float(surv.iloc[-1]), float(timeline.iloc[-1])))
+                        if median_time is None:
+                            summaries.append(f"**{label}**: la mayoría de clientes permanece activa durante todo el periodo analizado.")
+                        else:
+                            summaries.append(f"**{label}**: aproximadamente la mitad abandona después de {median_time:.0f} meses.")
+
+                if not plotted:
+                    st.markdown("<h3 style='color:red'>No se pudo ajustar Kaplan–Meier: datos insuficientes</h3>", unsafe_allow_html=True)
+                else:
+                    ax.set_xlabel('Tiempo (meses)')
+                    ax.set_ylabel('Probabilidad de supervivencia')
+                    ax.set_title('Curvas KM (variables seleccionadas)')
+                    ax.legend()
+                    st.pyplot(fig)
+                    plt.close(fig)
+
+            if plotted:
+                st.markdown("**Interpretación:**")
+                if last_surv:
+                    best = sorted(last_surv, key=lambda x: x[1], reverse=True)[0]
+                    worst = sorted(last_surv, key=lambda x: x[1])[0]
+                    st.success(f"✅ **Mejor retención**: {best[0]} — al final del periodo aún {best[1]*100:.0f}% de clientes siguen activos.")
+                    if best[0] != worst[0]:
+                        st.error(f"⚠️ **Menor retención**: {worst[0]} — al final del periodo solo {worst[1]*100:.0f}% permanece.")
+                st.markdown("---")
+                for line in summaries[:6]:
+                    st.write(f"• {line}")
+        except Exception as e:
+            st.markdown(f"<h3 style='color:red'>No se pudo ajustar Kaplan–Meier</h3>\n\n**Razón:** {e}", unsafe_allow_html=True)
+    elif view_choice == "⭐ Predicciones":
         render_cox_predictions_section(df, selected)
     else:
         for var in selected:
             st.markdown(f"### Variable: **{var}**")
-
-            def render_km():
-                st.write("**Kaplan–Meier (KM)**")
-                km_results = compute_km(df, 'Tenure Months', 'Churn Value', var)
-                try:
-                    plotted = False
-                    if PLOTLY_AVAILABLE:
-                        fig = go.Figure()
-                        for grp, res in km_results.items():
-                            if res is None:
-                                continue
-                            fig.add_trace(go.Scatter(x=res['timeline'], y=res['survival'], mode='lines', name=str(grp),
-                                                     hovertemplate=f'Grupo: {grp}<br>Mes: %{{x}}<br>Supervivencia: %{{y:.3f}}<extra></extra>'))
-                            plotted = True
-                        if not plotted:
-                            st.markdown("<h3 style='color:red'>No se pudo ajustar Kaplan–Meier: datos insuficientes</h3>", unsafe_allow_html=True)
-                        else:
-                            fig.update_layout(title=f'Curva KM por {var}', xaxis_title='Tiempo (meses)', yaxis_title='Probabilidad de supervivencia', template='plotly_white')
-                            st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        fig, ax = plt.subplots(figsize=(8,4))
-                        for grp, res in km_results.items():
-                            if res is None:
-                                continue
-                            ax.step(res['timeline'], res['survival'], where='post', label=str(grp))
-                            plotted = True
-                        if not plotted:
-                            st.markdown("<h3 style='color:red'>No se pudo ajustar Kaplan–Meier: datos insuficientes</h3>", unsafe_allow_html=True)
-                        else:
-                            ax.set_xlabel('Tiempo (meses)')
-                            ax.set_ylabel('Probabilidad de supervivencia')
-                            ax.set_title(f'Curva KM por {var}')
-                            ax.legend()
-                            st.pyplot(fig)
-                            plt.close(fig)
-
-                    # Texto resumen KM simplificado
-                    if plotted:
-                        try:
-                            summaries = []
-                            last_surv = []
-                            for grp, res in km_results.items():
-                                if res is None or res.empty:
-                                    continue
-                                surv = res['survival']
-                                timeline = res['timeline']
-                                # Crear etiqueta descriptiva con nombre de variable
-                                grp_label = f"{grp} {var}" if str(grp).lower() in ['no', 'yes'] else str(grp)
-                                # Mediana aproximada: primer tiempo donde supervivencia <= 0.5
-                                median_time = None
-                                if (surv <= 0.5).any():
-                                    median_time = timeline[surv <= 0.5].iloc[0]
-                                last_surv.append((grp_label, float(surv.iloc[-1]), float(timeline.iloc[-1])))
-                                if median_time is None:
-                                    summaries.append(f"**{grp_label}**: la mayoría de clientes permanece activa durante todo el periodo analizado.")
-                                else:
-                                    summaries.append(f"**{grp_label}**: aproximadamente la mitad de los clientes abandonan después de {median_time:.0f} meses.")
-
-                            st.markdown("**Interpretación por grupo:**")
-                            if last_surv:
-                                best = sorted(last_surv, key=lambda x: x[1], reverse=True)[0]
-                                worst = sorted(last_surv, key=lambda x: x[1])[0]
-                                st.success(f"✅ **Mejor retención**: {best[0]} — al mes {best[2]:.0f}, todavía {best[1]*100:.0f}% de clientes permanecen activos.")
-                                if best[0] != worst[0]:
-                                    st.error(f"⚠️ **Menor retención**: {worst[0]} — al mes {worst[2]:.0f}, solo {worst[1]*100:.0f}% de clientes permanecen activos.")
-                            st.markdown("---")
-                            for line in summaries:
-                                st.write(f"• {line}")
-                        except Exception:
-                            st.info("No fue posible generar el resumen textual de KM para esta variable.")
-                except Exception as e:
-                    st.markdown(f"<h3 style='color:red'>No se pudo ajustar Kaplan–Meier</h3>\n\n**Razón:** {e}", unsafe_allow_html=True)
 
             def render_cox():
                 st.write("**Cox Proportional Hazards (COX)**")
@@ -1111,9 +1170,7 @@ else:
                 except Exception as e:
                     st.markdown(f"<h3 style='color:red'>No se pudo calcular Log‑Rank</h3>\n\n**Razón:** {e}", unsafe_allow_html=True)
 
-            if view_choice == "KM":
-                render_km()
-            elif view_choice == "Log‑Rank":
+            if view_choice == "Log‑Rank":
                 render_logrank()
             elif view_choice == "Cox":
                 render_cox()
@@ -1126,3 +1183,11 @@ if view_choice == "KM":
     st.write('Sugerencia: Log-Rank te muestra comparaciones por pares para cada variable seleccionada.')
 elif view_choice == "Log‑Rank":
     st.write('Sugerencia: COX te mostrará qué variables impulsarán el riesgo instantáneo de abandono.')
+
+st.markdown(
+    "<div style='margin-top: 8rem; padding: 0.8rem 1rem; text-align: center; "
+    "border-top: 1px solid #ddd; color: #ffffff; font-size: 1rem; font-weight: 600;'>"
+    "✨ Creado por Juan Carlos Monte de Oca, David Ordoñez y Máximo Bandoni ✨"
+    "</div>",
+    unsafe_allow_html=True
+)
